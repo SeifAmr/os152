@@ -1,6 +1,7 @@
 // Segments in proc->gdt.
 #define NSEGS     7
 #define NULL ((void*)0)
+#define BLOCKING 0
 // Per-CPU state
 struct cpu {
   uchar id;                    // Local APIC ID; index into cpus[] below
