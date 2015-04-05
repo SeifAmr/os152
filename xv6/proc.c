@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "stdio.h"
 
 struct {
   struct spinlock lock;
@@ -228,7 +229,11 @@ wait(int *status)
       if(p->parent != proc)
         continue;
       havekids = 1;
+
       if(p->state == ZOMBIE){
+//        panic("error");
+//        *status = p->exit_status;
+
         // Found one.
         pid = p->pid;
         kfree(p->kstack);
@@ -239,9 +244,7 @@ wait(int *status)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
-        if (status != NULL) {
-          *status = p->exit_status;
-        }
+        p->exit_status = 0;
         release(&ptable.lock);
         return pid;
       }
