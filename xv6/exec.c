@@ -7,8 +7,11 @@
 #include "x86.h"
 #include "elf.h"
 
-int
-exec(char *path, char **argv)
+extern void injectexit(void);
+extern void* start_injectexit;
+extern void* end_injectexit;
+
+int exec(char *path, char **argv)
 {
   char *s, *last;
   int i, off;
@@ -17,6 +20,8 @@ exec(char *path, char **argv)
   struct inode *ip;
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
+  int size;
+  int length =&end_injectexit - &start_injectexit;
 
   begin_op();
   if((ip = namei(path)) == 0){
@@ -49,6 +54,7 @@ exec(char *path, char **argv)
     if(loaduvm(pgdir, (char*)ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad;
   }
+
   iunlockput(ip);
   end_op();
   ip = 0;
@@ -56,12 +62,16 @@ exec(char *path, char **argv)
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
-  if((sz = allocuvm(pgdir, sz, sz + 2*PGSIZE)) == 0)
+  if((sz = allocuvm(pgdir, sz, sz + 3*PGSIZE)) == 0)
     goto bad;
-  clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
+  clearpteu(pgdir, (char*)(sz - 3*PGSIZE));
   sp = sz;
+  //added for 1.4 - this part inject the exit code to any user space program
+  size = sz;
+  copyout(pgdir,size,start_injectexit,length);
+  //1.4 end
 
-  // Push argument strings, prepare rest of stack in ustack.
+  // Push argument strings, prepare rest of stack in ustack
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)
       goto bad;
