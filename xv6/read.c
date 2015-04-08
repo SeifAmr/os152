@@ -15,8 +15,10 @@ char buf[512];
 int main(int argc, char *argv[])
 {
     int n;
-    while(((n = read(0,buf,1)>0)&&n!='q'))
+    while((n = read(0,buf,1)>0) && (*buf != 'q'))
+    {
         write(1, buf, n);
+    }
     if(n < 0) {
         printf(1, "read: got a read error\n");
         exit(0);
