@@ -51,6 +51,8 @@ trap(struct trapframe *tf)
     if(cpu->id == 0){
       acquire(&tickslock);
       ticks++;
+      //the following was added for task 2 it's a function that sits in proc.c and increment the timers of all process
+      inc_ticks();
       wakeup(&ticks);
       release(&tickslock);
     }

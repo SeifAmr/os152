@@ -17,6 +17,7 @@ struct cpu {
   struct proc *proc;           // The currently-running process.
 };
 
+void inc_ticks();
 extern struct cpu cpus[NCPU];
 extern int ncpu;
 
@@ -68,6 +69,11 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int exit_status;             // exit status
+  uint ctime;                  // creation time of a process
+  uint ttime;                  // termination time of a process
+  uint stime;                  // the time the process was sleeping
+  uint retime;                 // the time the process was ready
+  uint rutime;                 // the time the process was running
 };
 
 // Process memory is laid out contiguously, low addresses first:

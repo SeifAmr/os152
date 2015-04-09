@@ -10,22 +10,24 @@ main(int argc, char *argv[])
     if (!(pid = fork()))
     {
         //child run commands
+        waitpid(pid,&status,0);
+
+        if (status == 0x7f)
+        {
+            printf(1, "OK\n");
+        }
+        else
+        {
+            printf(1, "FAILED\n");
+        }
         exit(0x7f);
     }
     else
     {
         //parent run commands
-        //waitpid(pid,&status,0);
-        wait(&status);
-//0 = blocking
+
+        exit(0x7f);
     }
-    if (status == 0x7f)
-    {
-        printf(1, "OK\n");
-    }
-    else
-    {
-        printf(1, "FAILED\n");
-    }
+
     exit(0);
 }

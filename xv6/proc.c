@@ -135,7 +135,7 @@ fork(void)
   // Allocate process.
   if((np = allocproc()) == 0)
     return -1;
-
+  np->ctime = ticks; //upon creation of new process np, give ctime the current ticks value
   // Copy process state from p.
   if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
     kfree(np->kstack);
@@ -209,6 +209,7 @@ exit(int status)
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
   proc->exit_status = status;
+  proc->ttime = ticks; //upon finishing termination of process proc, give ttime the current ticks value
   sched();
   panic("zombie exit");
 }
@@ -333,7 +334,8 @@ scheduler(void)
 {
   struct proc *p;
 
-  for(;;){
+  for(;;)
+  {
     // Enable interrupts on this processor.
     sti();
 
@@ -528,4 +530,16 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+void inc_ticks()
+{
+  struct proc *p;
+  char *sp;
+
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if(p->state == UNUSED)
+      goto found;
+  release(&ptable.lock);
 }
