@@ -13,4 +13,5 @@
 #define FIRSTARG 0
 #define SECONDARG 1
 #define THIRDARG 2
+#define FOURTHARG 3
 

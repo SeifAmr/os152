@@ -47,6 +47,25 @@ sys_waitpid(void)
 
   return waitpid(pid, status, options);
 }
+int
+sys_wait_stat(void)
+{
+  int *status;
+  int *wtime;
+  int *iotime;
+  int *rtime;
+
+  if (argptr(FIRSTARG, (char **) &wtime, sizeof(wtime)) < 0)
+    return -1;
+  if (argptr(SECONDARG, (char **) &iotime, sizeof(iotime)) < 0)
+    return -1;
+  if (argptr(THIRDARG, (char **) &rtime, sizeof(rtime)) < 0)
+    return -1;
+  if (argptr(FOURTHARG,(char **) &status, sizeof(status)) < 0)
+    return -1;
+
+  return wait_stat(wtime,rtime,iotime,status);
+}
 
 int
 sys_kill(void)

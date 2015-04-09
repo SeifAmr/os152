@@ -235,8 +235,6 @@ wait(int *status)
       havekids = 1;
 
       if(p->state == ZOMBIE){
-//        panic("error");
-//        *status = p->exit_status;
 
         // Found one.
         pid = p->pid;
@@ -320,6 +318,64 @@ waitpid(int pidArg, int *status, int options)
     else
       release(&ptable.lock);
     return -1;
+  }
+}
+
+/**
+    wait for a child and update time counters
+
+    @param *wtime, pointer to waiting time
+    @param *rtime, pointer to ready time
+    @param *iotime, pointer to sleeping time
+    @param *status, pointer to child status type
+
+    @return int, the child pid
+*/
+int wait_stat(int *wtime, int *rtime, int *iotime, int *status)
+{
+  struct proc *p;     //initalize  struct to use for the son procces
+  int havekids, pid;
+
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for zombie children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != proc)
+        continue;
+      havekids = 1;
+
+      if(p->state == ZOMBIE){
+
+        // Found one.
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->state = UNUSED;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+
+        *iotime = p->stime;
+        *rtime = p->rutime;
+        *wtime = p->retime;
+        if (status != NULL)
+          *status= p->exit_status;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || proc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(proc, &ptable.lock);  //DOC: wait-sleep
   }
 }
 
@@ -535,18 +591,26 @@ procdump(void)
   }
 }
 
+/**
+    Manage clock increment for all processes
+    in the ptable
+
+    @param void
+    @return void
+*/
 void inc_ticks() {
+
   struct proc *p;
-  char *sp;
 
   acquire(&ptable.lock);
+
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if (p->state == SLEEPING)
-      p->stime += 1;
-    else if (p->state == RUNNABLE)
-      p->retime += 1;
-    else if (p->state == RUNNING)
-      p->rutime += 1;
+      p->stime ++;
+    if (p->state == RUNNABLE)
+      p->retime ++ ;
+    if (p->state == RUNNING)
+      p->rutime ++;
 
   release(&ptable.lock);
 }
