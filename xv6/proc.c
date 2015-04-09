@@ -136,6 +136,9 @@ fork(void)
   if((np = allocproc()) == 0)
     return -1;
   np->ctime = ticks; //upon creation of new process np, give ctime the current ticks value
+  np->retime = 0;
+  np->stime = 0;
+  np->rutime = 0;
   // Copy process state from p.
   if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
     kfree(np->kstack);
@@ -532,14 +535,18 @@ procdump(void)
   }
 }
 
-void inc_ticks()
-{
+void inc_ticks() {
   struct proc *p;
   char *sp;
 
   acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == UNUSED)
-      goto found;
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if (p->state == SLEEPING)
+      p->stime += 1;
+    else if (p->state == RUNNABLE)
+      p->retime += 1;
+    else if (p->state == RUNNING)
+      p->rutime += 1;
+
   release(&ptable.lock);
 }
