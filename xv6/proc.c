@@ -607,9 +607,9 @@ void inc_ticks() {
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if (p->state == SLEEPING)
       p->stime ++;
-    if (p->state == RUNNABLE)
+    else if (p->state == RUNNABLE)
       p->retime ++ ;
-    if (p->state == RUNNING)
+    else if (p->state == RUNNING)
       p->rutime ++;
 
   release(&ptable.lock);
