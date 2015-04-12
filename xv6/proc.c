@@ -312,8 +312,6 @@ wait(int *status)
 }
 
 
-
-
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int
@@ -678,7 +676,6 @@ void scheduler_default(void)
         p->state = RUNNING;
         swtch(&cpu->scheduler, proc->context);
         switchkvm();
-
         if (proc->state != RUNNABLE)
           break;
       }
@@ -775,22 +772,45 @@ void scheduler_fcfs(void)
 void scheduler_cfs(void)
 {
   struct proc *p;
+  struct proc *tmp;
+  int min = -1;
 
   for (; ;)
   {
     // Enable interrupts on this processor.
     sti();
     acquire(&ptable.lock);
-    if (get_size(&proc_queue)==0)
+    for (tmp = ptable.proc; tmp < &ptable.proc[NPROC]; tmp++)
     {
-      release(&ptable.lock);
-      continue;
+      if (tmp->state == RUNNABLE)
+      {
+        if (min == -1)
+        {
+          min = tmp->rutime * tmp->priority;
+          p = tmp;
+        }
+        else
+        {
+          if((tmp->rutime * tmp->priority) < min)
+          {
+            min = (tmp->rutime * tmp->priority);
+            p = tmp;
+          }
+          else
+          {
+            if ((tmp->rutime * tmp->priority) == min)
+            {
+              if (tmp->priority < p->priority)
+                p = tmp;
+            }
+          }
+        }
+      }
     }
-    p = deq(&proc_queue);
+
     //timers for quanta
     runtime = ticks;
     findtime = runtime;
-
     proc = p;
     while (runtime - findtime <= QUANTA)
     {
@@ -801,9 +821,6 @@ void scheduler_cfs(void)
       if (proc->state != RUNNABLE)
         break;
     }
-
-    if (p->state==RUNNABLE)
-      enq(&proc_queue,p);
     // Process is done running for now.
     // It should have changed its p->state before coming back.
     proc = 0;
