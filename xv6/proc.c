@@ -656,7 +656,6 @@ void inc_ticks() {
 void scheduler_default(void)
 {
   struct proc *p;
-
   for (; ;) {
     // Enable interrupts on this processor.
     sti();
@@ -696,7 +695,7 @@ void scheduler_default(void)
 void scheduler_frr(void)
 {
   struct proc *p;
-  //init the queue
+
   for (; ;)
   {
     // Enable interrupts on this processor.
@@ -777,32 +776,39 @@ void scheduler_cfs(void)
 {
   struct proc *p;
 
-  for (; ;) {
+  for (; ;)
+  {
     // Enable interrupts on this processor.
     sti();
-
-    // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-      if (p->state != RUNNABLE)
-        continue;
+    if (get_size(&proc_queue)==0)
+    {
+      release(&ptable.lock);
+      continue;
+    }
+    p = deq(&proc_queue);
+    //timers for quanta
+    runtime = ticks;
+    findtime = runtime;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      proc = p;
+    proc = p;
+    while (runtime - findtime <= QUANTA)
+    {
       switchuvm(p);
       p->state = RUNNING;
       swtch(&cpu->scheduler, proc->context);
       switchkvm();
-
-//    Process is done running for now.
-//    It should have changed its p->state before coming back.
-      proc = 0;
+      if (proc->state != RUNNABLE)
+        break;
     }
+
+    if (p->state==RUNNABLE)
+      enq(&proc_queue,p);
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    proc = 0;
     release(&ptable.lock);
   }
-
 }
 
 //getter for q->count
