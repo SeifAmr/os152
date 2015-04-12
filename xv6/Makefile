@@ -183,7 +183,7 @@ mkfs: mkfs.c fs.h
 
 UPROGS=\
 	_cat\
-	_chen\
+	_sanity\
 	_echo\
 	_forktest\
 	_grep\
