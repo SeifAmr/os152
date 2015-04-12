@@ -1,4 +1,9 @@
 // Segments in proc->gdt.
+
+#define HIGH      1
+#define MEDIUM    2
+#define LOW       3
+
 #define NSEGS     7
 #define NULL ((void*)0)
 #define BLOCKING 0
@@ -78,6 +83,7 @@ struct proc {
   uint stime;                  // the time the process was sleeping
   uint retime;                 // the time the process was ready
   uint rutime;                 // the time the process was running
+  uint priority;               // added for keeping the priority of the process
 };
 
 // Process memory is laid out contiguously, low addresses first:

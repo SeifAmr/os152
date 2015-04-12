@@ -32,6 +32,17 @@ sys_wait(void)
 }
 
 int
+sys_set_priority(void)
+{
+  int priority;
+
+  if (argint(FIRSTARG, &priority) < 0)
+    return -1;
+
+  return set_priority(priority);
+}
+
+int
 sys_waitpid(void)
 {
   int *status;

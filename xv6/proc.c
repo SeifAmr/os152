@@ -42,7 +42,7 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
-///* declaring all the schedualers: */
+/* declaring all the schedualers: */
 void scheduler_default(void) __attribute__((noreturn));
 void scheduler_frr(void) __attribute__((noreturn));
 void scheduler_fcfs(void) __attribute__((noreturn));
@@ -131,7 +131,7 @@ userinit(void)
   #elif FCFS
     enq(&proc_queue,p);
   #endif
-
+  p->priority = MEDIUM;
   p->state = RUNNABLE;
 }
 
@@ -155,6 +155,16 @@ growproc(int n)
   return 0;
 }
 
+// ADDED FOR 3.4 - NEW SYSTEM CALL
+// SET PROC PRIORITY as HIGH, MED or LOW
+
+int set_priority(int priority)
+{
+  proc->priority = priority;
+  return 0;
+}
+
+
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
@@ -171,6 +181,7 @@ fork(void)
   np->retime = 0;
   np->stime = 0;
   np->rutime = 0;
+  np->priority = MEDIUM;
   // Copy process state from p.
   if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
     kfree(np->kstack);
