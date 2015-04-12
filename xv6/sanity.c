@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
     else {
         creation_index = 0;
         set_priority(creation_index % 3);
-        while(creation_index < 10000000)
+        while(creation_index < 500000000)
         {
             creation_index++;
         }
