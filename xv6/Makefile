@@ -183,6 +183,7 @@ mkfs: mkfs.c fs.h
 
 UPROGS=\
 	_cat\
+	_chen\
 	_echo\
 	_forktest\
 	_grep\
@@ -198,6 +199,7 @@ UPROGS=\
 #	_usertests\
 	_wc\
 	_zombie\
+
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
