@@ -51,7 +51,8 @@ trap(struct trapframe *tf)
     if(cpu->id == 0){
       acquire(&tickslock);
       ticks++;
-      inc_ticks();//this was added for task 2 it's a function that sits in proc.c and increment the timers of all process
+      inc_ticks();  //this was added for task 2 it's a function that sits in proc.c and increment the timers of all process
+      runtime++; //this was added for task 3.1 it's a variable that count how many ticks have passed since starting running
       wakeup(&ticks);
       release(&tickslock);
     }
@@ -103,6 +104,8 @@ trap(struct trapframe *tf)
 
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
+  // added another condition - want to yield only after QUANTA ticks of the clock
+
   if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
     yield();
 

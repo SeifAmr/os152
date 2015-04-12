@@ -28,6 +28,7 @@ OBJS = \
 	vectors.o\
 	vm.o\
 	injectexit.o\
+	queue.o\
 
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
@@ -70,6 +71,9 @@ QEMU = $(shell if which qemu > /dev/null; \
 	echo "***" 1>&2; exit 1)
 endif
 
+# set the schedule flag before checking which option was picked by user
+SCHEDFLAG = DEFAULT
+
 CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
@@ -81,6 +85,26 @@ CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 &
 ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
 # FreeBSD ld wants ``elf_i386_fbsd''
 LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
+
+#	this part was added on task 3
+#	this is the conditonal chain to chose which option
+#	will be activated for the scheduler
+
+ifeq ($(SCHEDFLAG),FRR)
+	CFLAGS += -D FRR
+else
+	ifeq ($(SCHEDFLAG),FCFS)
+		CFLAGS += -D FCFS
+	else
+		ifeq ($(SCHEDFLAG),CFS)
+			CFLAGS += -D CFS
+		else
+			CFLAGS += -D DEFAULT
+		endif
+	endif
+endif
+
+
 
 xv6.img: bootblock kernel fs.img
 	dd if=/dev/zero of=xv6.img count=10000

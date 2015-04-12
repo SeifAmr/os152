@@ -7,11 +7,32 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "stdio.h"
+#include "queue.h"
 
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
+
+struct queue {
+  struct spinlock queue_lock;
+  struct proc *queue[NPROC];
+  int count;
+};
+
+struct queue proc_queue;
+
+void queue_init(struct queue *q);
+
+int get_size(struct queue *q);
+
+//add a new node to queue
+void enq(struct queue *q, struct proc *p);
+
+//init the queue
+
+//remove first node from queue
+struct proc * deq(struct queue *q);
 
 static struct proc *initproc;
 
@@ -21,10 +42,17 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+///* declaring all the schedualers: */
+void scheduler_default(void) __attribute__((noreturn));
+void scheduler_frr(void) __attribute__((noreturn));
+void scheduler_fcfs(void) __attribute__((noreturn));
+//void scheduler_cfs(void) __attribute__((noreturn));
+
 void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  queue_init(&proc_queue);
 }
 
 //PAGEBREAK: 32
@@ -96,9 +124,13 @@ userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
-
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
+  #ifdef FRR
+    enq(&proc_queue,p);
+  #elif FCFS
+    enq(&proc_queue,p);
+  #endif
 
   p->state = RUNNABLE;
 }
@@ -163,8 +195,14 @@ fork(void)
   pid = np->pid;
 
   // lock to force the compiler to emit the np->state write last.
+
   acquire(&ptable.lock);
   np->state = RUNNABLE;
+      #ifdef FRR
+        enq(&proc_queue,np);
+      #elif FCFS
+        enq(&proc_queue,np);
+      #endif
   release(&ptable.lock);
   
   return pid;
@@ -173,8 +211,7 @@ fork(void)
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
-void
-exit(int status)
+void exit(int status)
 {
   struct proc *p;
   int fd;
@@ -258,7 +295,6 @@ wait(int *status)
       release(&ptable.lock);
       return -1;
     }
-
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(proc, &ptable.lock);  //DOC: wait-sleep
   }
@@ -391,35 +427,15 @@ int wait_stat(int *wtime, int *rtime, int *iotime, int *status)
 void
 scheduler(void)
 {
-  struct proc *p;
-
-  for(;;)
-  {
-    // Enable interrupts on this processor.
-    sti();
-
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-      swtch(&cpu->scheduler, proc->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      proc = 0;
-    }
-    release(&ptable.lock);
-
-  }
+  #ifdef DEFAULT
+    scheduler_default();
+  #elif FRR
+    scheduler_frr();
+  #elif FCFS
+    scheduler_fcfs();
+  #elif CFS
+    scheduler_default();
+  #endif
 }
 
 // Enter scheduler.  Must hold only ptable.lock
@@ -519,7 +535,14 @@ wakeup1(void *chan)
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan)
+    {
       p->state = RUNNABLE;
+      #ifdef FRR
+        enq(&proc_queue,p);
+      #elif FCFS
+        enq(&proc_queue,p);
+      #endif
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -545,7 +568,10 @@ kill(int pid)
       p->killed = 1;
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
+      {
         p->state = RUNNABLE;
+        enq(&proc_queue,p);
+      }
       release(&ptable.lock);
       return 0;
     }
@@ -613,4 +639,196 @@ void inc_ticks() {
       p->rutime ++;
 
   release(&ptable.lock);
+}
+
+void scheduler_default(void)
+{
+  struct proc *p;
+
+  for (; ;) {
+    // Enable interrupts on this processor.
+    sti();
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      if (p->state != RUNNABLE)
+        continue;
+
+      runtime=ticks;
+      findtime=ticks;
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      proc = p;
+      while (runtime-findtime <= QUANTA)
+      {
+        switchuvm(p);
+        p->state = RUNNING;
+        swtch(&cpu->scheduler, proc->context);
+        switchkvm();
+
+        if (proc->state != RUNNABLE)
+          break;
+      }
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      proc = 0;
+    }
+    release(&ptable.lock);
+  }
+}
+
+void scheduler_frr(void)
+{
+  struct proc *p;
+  //init the queue
+  for (; ;)
+  {
+    // Enable interrupts on this processor.
+    sti();
+    acquire(&ptable.lock);
+    if (get_size(&proc_queue)==0)
+    {
+      release(&ptable.lock);
+      continue;
+    }
+    p = deq(&proc_queue);
+    //timers for quanta
+    runtime = ticks;
+    findtime = runtime;
+
+    proc = p;
+    while (runtime - findtime <= QUANTA)
+    {
+      switchuvm(p);
+      p->state = RUNNING;
+      swtch(&cpu->scheduler, proc->context);
+      switchkvm();
+      if (proc->state != RUNNABLE)
+        break;
+    }
+
+    if (p->state==RUNNABLE)
+      enq(&proc_queue,p);
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    proc = 0;
+    release(&ptable.lock);
+  }
+}
+
+void scheduler_fcfs(void)
+{
+  struct proc *p;
+  //init the queue
+  for (; ;)
+  {
+    // Enable interrupts on this processor.
+    sti();
+    acquire(&ptable.lock);
+    if (get_size(&proc_queue)==0)
+    {
+      release(&ptable.lock);
+      continue;
+    }
+    p = deq(&proc_queue);
+    //timers for quanta
+    runtime = ticks;
+    findtime = runtime;
+
+    proc = p;
+    while (1)
+    {
+      switchuvm(p);
+      p->state = RUNNING;
+      swtch(&cpu->scheduler, proc->context);
+      switchkvm();
+      if (proc->state != RUNNABLE)
+        break;
+    }
+    if (p->state==RUNNABLE)
+      enq(&proc_queue,p);
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    proc = 0;
+    release(&ptable.lock);
+  }
+}
+
+//void scheduler_cfs(void)
+//{
+//  struct proc *p;
+//
+//  for (; ;) {
+//    // Enable interrupts on this processor.
+//    sti();
+//
+//    // Loop over process table looking for process to run.
+//    acquire(&ptable.lock);
+//    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+//      if (p->state != RUNNABLE)
+//        continue;
+//
+//      // Switch to chosen process.  It is the process's job
+//      // to release ptable.lock and then reacquire it
+//      // before jumping back to us.
+//      proc = p;
+//      switchuvm(p);
+//      p->state = RUNNING;
+//      swtch(&cpu->scheduler, proc->context);
+//      switchkvm();
+//
+//      // Process is done running for now.
+//      // It should have changed its p->state before coming back.
+//      proc = 0;
+//    }
+//    release(&ptable.lock);
+//  }
+//
+//}
+
+//getter for q->count
+int get_size(struct queue *q)
+{
+  return q->count;
+}
+
+//increment count
+void inc_size(struct queue *q)
+{
+  q->count += 1;
+}
+
+//decrease count
+void dec_size(struct queue *q)
+{
+  q->count -= 1;
+}
+
+/* Enqueing into the queue */
+void enq(struct queue *q, struct proc *p)
+{
+  q->queue[q->count++] = p;
+}
+
+/* Dequeing the queue */
+struct proc *deq(struct queue *q)
+{
+  int i;
+  struct proc *ans;
+  if (q->count == 0)
+    return 0;
+  ans = q->queue[0];
+  for (i = 0; i < q->count - 1 ; i++)
+      q->queue[i] = q->queue[i+1];
+  q->count--;
+  return ans;
+}
+
+void queue_init(struct queue *q)
+{
+  q->count=0;
+  initlock(&q->queue_lock, "proc_queue");
 }

@@ -21,6 +21,10 @@ void inc_ticks();
 extern struct cpu cpus[NCPU];
 extern int ncpu;
 
+//these are variables for the scheduler
+int runtime;
+int findtime;
+
 // Per-CPU variables, holding pointers to the
 // current cpu and to the current process.
 // The asm suffix tells gcc to use "%gs:0" to refer to cpu

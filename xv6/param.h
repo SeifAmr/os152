@@ -14,4 +14,4 @@
 #define SECONDARG 1
 #define THIRDARG 2
 #define FOURTHARG 3
-
+#define QUANTA 5
