@@ -3,6 +3,7 @@
 #include "types.h"
 #include "user.h"
 #include "fcntl.h"
+#include "param.h"
 
 // Parsed command representation
 #define EXEC  1
@@ -12,6 +13,7 @@
 #define BACK  5
 
 #define MAXARGS 10
+#define MAXJOBS 64 //Pigeonhole principle (NPROC in param.h)
 
 struct cmd {
   int type;
@@ -49,6 +51,20 @@ struct backcmd {
   struct cmd *cmd;
 };
 
+struct job *jobs[10];
+
+struct job{
+  int job_index;
+  char job_command[20];
+  struct job_process *processes[NPROC];
+};
+
+struct job_process{
+  char process_name[15];
+  int pid;
+};
+
+
 int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
@@ -75,6 +91,7 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(0);
+          printf(1,"%s" ,ecmd->argv[0]);
     exec(ecmd->argv[0], ecmd->argv);
     printf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
@@ -141,11 +158,17 @@ getcmd(char *buf, int nbuf)
   return 0;
 }
 
+add_new_job_to_jobs_stack(char *buf, int job_pid){
+  //find free index in the array of jobs
+  //add the new job (strcpy (jobs[index].command , buf
+};
+
 int
 main(void)
 {
   static char buf[100];
   int fd;
+  int jobs_counter;
   
   // Assumes three file descriptors open.
   while((fd = open("console", O_RDWR)) >= 0){
@@ -165,8 +188,20 @@ main(void)
         printf(2, "cannot cd %s\n", buf+3);
       continue;
     }
-    if(fork1() == 0)
+
+    //support jobs cmd
+    if(buf[0] == 'j' && buf[1] == 'o' && buf[2] == 'b' && buf[3] == 's'){
+      // Clumsy but will have to do for now.
+      // Chdir has no effect on the parent if run in the child.
+      buf[strlen(buf)-1] = 0;
+//      print_all_jobs();
+      continue;
+    }
+
+    int new_job_pid = fork1();
+    if(new_job_pid == 0)
       runcmd(parsecmd(buf));
+    add_new_job_to_jobs_stack(buf,new_job_pid);
     wait(0);
   }
   exit(0);
